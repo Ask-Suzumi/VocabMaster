@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml
+
+# Android
+app/build/
+app/.gradle/
+*.apk
+*.aab
+local.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env

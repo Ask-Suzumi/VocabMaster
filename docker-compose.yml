@@ -1,0 +1,13 @@
+services:
+  vocabmaster:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - vocabmaster_data:/data
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+    restart: unless-stopped
+
+volumes:
+  vocabmaster_data:

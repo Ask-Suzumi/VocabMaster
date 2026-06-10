@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VocabMaster">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<title>VocabMaster</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #242836; --border: #2a2e3a;
+  --text: #e1e4ed; --text2: #9ca3b4; --accent: #6366f1; --accent2: #818cf8;
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+  --radius: 12px; --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column; user-select: none;
+  padding-bottom: calc(70px + var(--safe-bottom));
+}
+/* ─── Header ─── */
+header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top:0; z-index:50; flex-wrap: wrap; gap:6px;
+}
+.logo { font-size: 17px; font-weight: 700; color: var(--accent2); }
+.logo span { color: var(--text2); font-weight: 400; font-size: 12px; }
+.header-right { display: flex; gap: 6px; align-items: center; }
+.sync-status { font-size: 11px; padding: 4px 10px; border-radius: 12px; background: var(--surface2); color: var(--text2); }
+.sync-status.synced { color: var(--green); }
+.sync-status.unsynced { color: var(--yellow); }
+.sync-status.error { color: var(--red); }
+/* ─── Main ─── */
+main { flex:1; padding: 12px; max-width: 900px; margin:0 auto; width:100%; }
+/* ─── Bottom Nav (Mobile) ─── */
+.bottom-nav {
+  position: fixed; bottom:0; left:0; right:0; background: var(--surface);
+  border-top: 1px solid var(--border); display: flex; z-index: 50;
+  padding-bottom: var(--safe-bottom);
+}
+.bottom-nav button {
+  flex:1; background:none; border:none; color:var(--text2); padding: 8px 4px;
+  font-size: 10px; display:flex; flex-direction:column; align-items:center; gap:2px;
+  cursor:pointer; transition: color 0.2s; min-width:0;
+}
+.bottom-nav button .nav-icon { font-size: 20px; }
+.bottom-nav button.active { color: var(--accent2); }
+/* ─── Cards ─── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.card h2 { font-size: 16px; margin-bottom: 12px; }
+.card h3 { font-size: 13px; color: var(--text2); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+/* ─── Buttons ─── */
+.btn {
+  background: var(--accent); color:#fff; border:none; padding: 10px 18px;
+  border-radius: 8px; cursor:pointer; font-size:14px; font-weight:500;
+  transition: all 0.15s; white-space:nowrap;
+}
+.btn:hover { background: var(--accent2); }
+.btn:active { transform: scale(0.97); }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent2); }
+.btn-lg { padding: 14px 24px; font-size: 16px; border-radius: 12px; }
+.btn-sm { padding: 6px 10px; font-size: 12px; }
+.btn-green { background: var(--green); }
+.btn-red { background: var(--red); }
+.btn-block { width:100%; }
+/* ─── Review ─── */
+.rating-row { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.rating-btn {
+  flex:1; min-width: 50px; padding: 10px 6px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--text); cursor:pointer; text-align:center; font-size:11px;
+  transition: all 0.15s; line-height: 1.3;
+}
+.rating-btn:active { transform: scale(0.95); }
+.rating-btn .key { font-size: 16px; font-weight: 700; display: block; }
+.rating-btn.r0:active { border-color: #ef4444; background: #3b1111; }
+.rating-btn.r1:active { border-color: #f97316; background: #3b1f0a; }
+.rating-btn.r2:active { border-color: #eab308; background: #3b2f0a; }
+.rating-btn.r3:active { border-color: #22c55e; background: #0a3b1a; }
+.rating-btn.r4:active { border-color: #6366f1; background: #0f113b; }
+.word-display {
+  font-size: 36px; font-weight: 700; text-align: center;
+  padding: 28px 16px; letter-spacing: 1px;
+  background: linear-gradient(135deg, var(--surface2), var(--surface));
+  border-radius: var(--radius); margin-bottom: 12px; cursor: pointer;
+}
+.meaning-display { font-size: 18px; text-align: center; color: var(--text2); padding: 12px; line-height: 1.6; }
+.phonetic { font-size: 14px; color: var(--accent2); text-align: center; margin-bottom: 6px; }
+/* ─── Progress ─── */
+.progress-bar { height: 4px; background: var(--surface2); border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+/* ─── Stats ─── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+.stat-card {
+  background: var(--surface2); border-radius: var(--radius); padding: 12px;
+  text-align: center; border: 1px solid var(--border);
+}
+.stat-card .value { font-size: 22px; font-weight: 700; color: var(--accent2); }
+.stat-card .label { font-size: 11px; color: var(--text2); margin-top: 2px; }
+/* ─── Import ─── */
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 32px 16px; text-align: center; cursor: pointer; color: var(--text2);
+  transition: all 0.2s;
+}
+.drop-zone:active, .drop-zone.drag-over { border-color: var(--accent); background: var(--surface2); }
+.drop-zone .icon { font-size: 40px; margin-bottom: 8px; }
+/* ─── Table ─── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--text2); font-weight: 500; font-size: 10px; letter-spacing: 0.5px; }
+tr:active { background: var(--surface2); }
+/* ─── Inputs ─── */
+input[type="text"], input[type="number"], input[type="password"], input[type="email"], select {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  padding: 10px 12px; border-radius: 8px; font-size: 14px;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+input[type="range"] { accent-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); }
+/* ─── Quiz ─── */
+.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.choice-btn {
+  background: var(--surface2); border: 2px solid var(--border);
+  border-radius: var(--radius); padding: 14px; cursor: pointer;
+  text-align: center; font-size: 14px; transition: all 0.15s; color: var(--text);
+}
+.choice-btn:active { transform: scale(0.97); }
+.choice-btn.correct { border-color: var(--green); background: #0a2e1a; }
+.choice-btn.wrong { border-color: var(--red); background: #3b1111; }
+.choice-btn:disabled { pointer-events: none; opacity: 0.8; }
+/* ─── Spell ─── */
+.type-input {
+  font-size: 18px; text-align: center; padding: 12px;
+  border: 2px solid var(--border); border-radius: var(--radius);
+  background: var(--surface2); color: var(--text); width: 100%;
+}
+.type-input:focus { border-color: var(--accent); outline: none; }
+.type-input.correct { border-color: var(--green); }
+.type-input.wrong { border-color: var(--red); }
+/* ─── Audio ─── */
+.speak-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--accent2); cursor: pointer; font-size: 18px;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.speak-btn:active { background: var(--accent); color: #fff; transform: scale(0.9); }
+.speak-btn.speaking { background: var(--accent); color: #fff; animation: pulse 0.6s infinite; }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.word-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.speak-sm { width: 26px; height: 26px; font-size: 13px; }
+/* ─── Settings Bar ─── */
+.settings-bar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 6px 10px; background: var(--surface2); border-radius: 8px;
+  margin-bottom: 10px; font-size: 11px; color: var(--text2);
+}
+.settings-bar label { display: flex; align-items: center; gap: 3px; cursor: pointer; }
+.settings-bar select { font-size: 11px; padding: 3px 6px; }
+.settings-bar input[type="range"] { width: 60px; }
+/* ─── Dictation ─── */
+.dictation-word { font-size: 32px; text-align: center; padding: 20px; color: var(--accent2); cursor: pointer; }
+.dictation-word:active { color: var(--accent); }
+/* ─── Modal ─── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; width: 100%; max-width: 380px;
+  box-shadow: var(--shadow);
+}
+.modal h3 { font-size: 16px; margin-bottom: 16px; text-align: center; }
+.modal input { margin-bottom: 10px; }
+.modal .btn { margin-top: 6px; }
+/* ─── Toast ─── */
+.toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 20px; box-shadow: var(--shadow); z-index: 200;
+  animation: slideUp 0.3s ease; font-size: 13px; white-space: nowrap;
+}
+@keyframes slideUp { from { transform: translateX(-50%) translateY(20px); opacity: 0; } }
+/* ─── Misc ─── */
+.hidden { display: none !important; }
+.page { display: none; }
+.page.active { display: block; }
+.filter-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+.kbd {
+  display: inline-block; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 5px; font-size: 10px; font-family: monospace; color: var(--text2);
+}
+.text-center { text-align: center; }
+.mt-8 { margin-top: 8px; }
+.mb-8 { margin-bottom: 8px; }
+.gap-8 { gap:8px; }
+.flex-wrap { display:flex; flex-wrap:wrap; }
+/* ─── Desktop Nav ─── */
+.desktop-nav { display: flex; gap: 2px; }
+.desktop-nav button {
+  background: none; border: none; color: var(--text2); padding: 6px 12px;
+  border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s;
+}
+.desktop-nav button:hover { background: var(--surface2); color: var(--text); }
+.desktop-nav button.active { background: var(--accent); color: #fff; }
+/* ─── Desktop: hide bottom nav, show top nav ─── */
+@media (min-width: 768px) {
+  .bottom-nav { display: none; }
+  body { padding-bottom: 0; }
+  .word-display { font-size: 48px; padding: 40px 20px; }
+  .meaning-display { font-size: 20px; }
+}
+@media (max-width: 767px) {
+  .desktop-nav { display: none; }
+  .choice-grid { grid-template-columns: 1fr; }
+  .rating-btn { min-width: 40px; font-size: 10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">🧠 VocabMaster <span>SM-2 SRS</span></div>
+  <nav class="desktop-nav">
+    <button onclick="switchPage('review')" id="nav-review" class="active">📝 复习</button>
+    <button onclick="switchPage('quiz')" id="nav-quiz">🎯 选择</button>
+    <button onclick="switchPage('spell')" id="nav-spell">✍️ 拼写</button>
+    <button onclick="switchPage('browse')" id="nav-browse">📚 词库</button>
+    <button onclick="switchPage('stats')" id="nav-stats">📊 统计</button>
+    <button onclick="switchPage('import')" id="nav-import">📥 导入</button>
+  </nav>
+  <div class="header-right">
+    <span class="sync-status" id="sync-badge" onclick="showAccountModal()">💾 离线</span>
+    <button class="btn btn-sm btn-outline" onclick="showAccountModal()" id="account-btn">🔑 登录</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+  <!-- REVIEW -->
+  <div id="page-review" class="page active">
+    <div id="review-empty" class="card text-center" style="padding:40px 16px;">
+      <div style="font-size:48px;margin-bottom:12px;">📭</div>
+      <h2 id="review-empty-msg">没有待复习的单词</h2>
+      <p style="color:var(--text2);margin-bottom:16px;">导入词库后开始科学记忆</p>
+      <button class="btn btn-lg" onclick="switchPage('import')">📥 导入词汇表</button>
+    </div>
+    <div id="review-card" class="card hidden">
+      <div class="progress-bar"><div class="progress-fill" id="review-progress"></div></div>
+      <div class="settings-bar">
+        <label><input type="checkbox" id="auto-speak" onchange="toggleAutoSpeak()"> 🔊 自动发音</label>
+        <select id="voice-select" onchange="updateSpeechSettings()" style="max-width:120px;"></select>
+      </div>
+      <div class="text-center" style="color:var(--text2);font-size:11px;margin-bottom:8px;">
+        剩余 <span id="review-remaining" style="color:var(--accent2);">0</span> · <span class="kbd">Space</span>翻转 <span class="kbd">1-5</span>评分 <span class="kbd">S</span>发音
+      </div>
+      <div class="word-row">
+        <button class="speak-btn" id="review-speak-btn" onclick="event.stopPropagation();speakReviewWord()">🔊</button>
+        <div class="word-display" id="review-word" onclick="flipCard()" style="flex:1;">???</div>
+      </div>
+      <div id="review-meaning" class="meaning-display hidden"></div>
+      <div id="review-phonetic" class="phonetic hidden"></div>
+      <div id="review-extra" class="text-center hidden" style="color:var(--text2);font-size:13px;margin-top:6px;"></div>
+      <div id="review-rating" class="rating-row hidden">
+        <button class="rating-btn r0" onclick="rateCard(0)"><span class="key">1</span>忘了</button>
+        <button class="rating-btn r1" onclick="rateCard(1)"><span class="key">2</span>困难</button>
+        <button class="rating-btn r2" onclick="rateCard(2)"><span class="key">3</span>勉强</button>
+        <button class="rating-btn r3" onclick="rateCard(3)"><span class="key">4</span>轻松</button>
+        <button class="rating-btn r4" onclick="rateCard(4)"><span class="key">5</span>秒答</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="page-quiz" class="page">
+    <div id="quiz-setup" class="card">
+      <h2>🎯 选择题</h2>
+      <div class="flex-wrap gap-8">
+        <select id="quiz-pool"><option value="due">待复习</option><option value="all">全部</option><option value="new">新词</option></select>
+        <input type="number" id="quiz-count" value="10" min="5" max="50" style="width:65px;">
+        <button class="btn" onclick="startQuiz()">开始</button>
+      </div>
+    </div>
+    <div id="quiz-active" class="card hidden">
+      <div class="progress-bar"><div class="progress-fill" id="quiz-progress"></div></div>
+      <div class="text-center" style="font-size:11px;color:var(--text2);margin-bottom:6px;">
+        <span id="quiz-current">1</span>/<span id="quiz-total">10</span> · ✅ <span id="quiz-score" style="color:var(--accent2);">0</span>
+      </div>
+      <div class="word-display" id="quiz-word" style="font-size:32px;cursor:default;">???</div>
+      <div class="text-center mb-8"><button class="speak-btn speak-sm" onclick="speakQuizWord()">🔊</button></div>
+      <div class="choice-grid" id="quiz-choices"></div>
+    </div>
+    <div id="quiz-result" class="card text-center hidden">
+      <div style="font-size:48px;" id="quiz-emoji">🎉</div>
+      <h2>测验完成</h2>
+      <p style="font-size:22px;color:var(--accent2);margin:8px 0;">得分: <span id="quiz-final-score">0</span></p>
+      <button class="btn btn-lg" onclick="resetQuiz()">再来一轮</button>
+    </div>
+  </div>
+
+  <!-- SPELL -->
+  <div id="page-spell" class="page">
+    <div id="spell-setup" class="card">
+      <h2>✍️ 拼写 / 🎧 听写</h2>
+      <div class="flex-wrap gap-8">
+        <select id="spell-mode" onchange="toggleSpellMode()"><option value="spell">✍️ 看释义</option><option value="dictation">🎧 听写</option></select>
+        <select id="spell-pool"><option value="due">待复习</option><option value="all">全部</option></select>
+        <input type="number" id="spell-count" value="10" min="5" max="50" style="width:65px;">
+        <button class="btn" onclick="startSpell()">开始</button>
+      </div>
+    </div>
+    <div id="spell-active" class="card hidden">
+      <div class="progress-bar"><div class="progress-fill" id="spell-progress"></div></div>
+      <div class="text-center" style="font-size:11px;color:var(--text2);margin-bottom:10px;">
+        <span id="spell-current">1</span>/<span id="spell-total">10</span> · ✅ <span id="spell-correct-count" style="color:var(--green);">0</span>
+      </div>
+      <div id="spell-phonetic-hint" class="phonetic hidden"></div>
+      <div class="meaning-display" id="spell-meaning" style="font-size:20px;color:var(--text);margin-bottom:16px;"></div>
+      <div id="dictation-display" class="hidden text-center" style="margin-bottom:16px;">
+        <div class="dictation-word" id="dictation-play-btn" onclick="speakDictationWord()">🔊 点击听发音</div>
+        <p style="color:var(--text2);font-size:11px;margin-top:4px;">按 <span class="kbd">S</span> 重播</p>
+      </div>
+      <input type="text" class="type-input" id="spell-input" placeholder="输入拼写..." autocomplete="off" autocorrect="off" spellcheck="false">
+      <div id="spell-feedback" class="text-center mt-8" style="font-size:15px;min-height:22px;"></div>
+      <div class="text-center mt-8">
+        <button class="btn btn-outline btn-sm" onclick="spellSkip()">跳过</button>
+        <button class="btn btn-sm" onclick="spellCheck()" style="margin-left:6px;">确认</button>
+      </div>
+    </div>
+    <div id="spell-result" class="card text-center hidden">
+      <div style="font-size:48px;">✨</div>
+      <h2>拼写完成</h2>
+      <p style="font-size:22px;color:var(--accent2);margin:8px 0;">正确率: <span id="spell-final-score">0</span>%</p>
+      <button class="btn btn-lg" onclick="resetSpell()">再来一轮</button>
+    </div>
+  </div>
+
+  <!-- BROWSE -->
+  <div id="page-browse" class="page">
+    <div class="card">
+      <h2>📚 词库</h2>
+      <div class="filter-bar">
+        <input type="text" id="browse-search" placeholder="🔍 搜索..." oninput="renderBrowse()" style="max-width:180px;">
+        <select id="browse-filter" onchange="renderBrowse()"><option value="all">全部</option><option value="new">未学</option><option value="learning">学习中</option><option value="mastered">已掌握</option></select>
+        <span style="font-size:12px;color:var(--text2);" id="browse-count">0 词</span>
+      </div>
+      <div style="overflow-x:auto;max-height:55vh;-webkit-overflow-scrolling:touch;">
+        <table><thead><tr><th>#</th><th>单词</th><th>释义</th><th>状态</th><th>间隔</th><th>下次</th></tr></thead><tbody id="browse-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div id="page-stats" class="page">
+    <div class="card">
+      <h2>📊 统计</h2>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="value" id="stat-total">0</div><div class="label">总词汇</div></div>
+        <div class="stat-card"><div class="value" id="stat-mastered">0</div><div class="label">已掌握</div></div>
+        <div class="stat-card"><div class="value" id="stat-learning">0</div><div class="label">学习中</div></div>
+        <div class="stat-card"><div class="value" id="stat-due">0</div><div class="label">待复习</div></div>
+        <div class="stat-card"><div class="value" id="stat-reviews">0</div><div class="label">总复习</div></div>
+        <div class="stat-card"><div class="value" id="stat-streak">0</div><div class="label">连续天</div></div>
+      </div>
+      <div class="flex-wrap gap-8 mt-8">
+        <button class="btn btn-outline btn-sm" onclick="forceSync()">🔄 强制同步</button>
+        <button class="btn btn-outline btn-sm" onclick="resetAllProgress()">⚠️ 重置</button>
+        <button class="btn btn-outline btn-sm" onclick="exportData()">💾 导出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPORT -->
+  <div id="page-import" class="page">
+    <div class="card">
+      <h2>📥 导入词汇</h2>
+      <p style="color:var(--text2);margin-bottom:12px;font-size:13px;">.xlsx/.csv，第1列单词 第2列释义 第3列可选</p>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="icon">📂</div><p>点击或拖拽文件</p>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(event)" class="hidden">
+      <div id="import-preview" class="hidden mt-8">
+        <h3>预览</h3>
+        <table><thead><tr><th>单词</th><th>释义</th></tr></thead><tbody id="import-preview-tbody"></tbody></table>
+        <p class="mt-8" style="color:var(--text2);">共 <strong id="import-count">0</strong> 词</p>
+        <div class="flex-wrap gap-8 mt-8">
+          <select id="import-mode"><option value="merge">合并</option><option value="replace">替换</option></select>
+          <button class="btn btn-green" onclick="confirmImport()">✅ 确认导入</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📋 手动添加</h3>
+      <div class="flex-wrap gap-8">
+        <input type="text" id="manual-word" placeholder="单词" style="flex:1;min-width:80px;">
+        <input type="text" id="manual-meaning" placeholder="释义" style="flex:2;min-width:140px;">
+        <button class="btn btn-sm" onclick="manualAdd()">添加</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button onclick="switchPage('review')" id="bnav-review" class="active"><span class="nav-icon">📝</span>复习</button>
+  <button onclick="switchPage('quiz')" id="bnav-quiz"><span class="nav-icon">🎯</span>选择</button>
+  <button onclick="switchPage('spell')" id="bnav-spell"><span class="nav-icon">✍️</span>拼写</button>
+  <button onclick="switchPage('browse')" id="bnav-browse"><span class="nav-icon">📚</span>词库</button>
+  <button onclick="switchPage('stats')" id="bnav-stats"><span class="nav-icon">📊</span>统计</button>
+</nav>
+
+<!-- ACCOUNT MODAL -->
+<div id="account-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAccountModal()">
+  <div class="modal" id="account-modal-content">
+    <div id="account-logged-out">
+      <h3>🔑 登录</h3>
+      <input type="text" id="auth-username" placeholder="用户名">
+      <input type="password" id="auth-password" placeholder="密码">
+      <input type="text" id="auth-server" placeholder="服务器地址" value="">
+      <button class="btn btn-block" onclick="doAuth()">登录</button>
+      <p id="auth-error" style="color:var(--red);font-size:12px;margin-top:6px;text-align:center;" class="hidden"></p>
+    </div>
+    <div id="account-logged-in" class="hidden text-center">
+      <h3>✅ 已登录</h3>
+      <p style="margin:8px 0;">用户: <strong id="logged-username">-</strong></p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">服务器: <span id="logged-server">-</span></p>
+      <button class="btn btn-red btn-sm" onclick="doLogout()">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ==================== DATA ====================
+const STORAGE_KEY = 'vocabmaster_data';
+const AUTH_KEY = 'vocabmaster_auth';
+const TODAY = new Date().toISOString().split('T')[0];
+
+let appData = { words: {}, stats: { totalReviews: 0, streak: 0, lastStudyDate: null, streakDays: {} }, version: 2 };
+let auth = { token: null, username: null, server: '' };
+
+function loadData() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) appData = { ...appData, ...JSON.parse(r) }; } catch(e){}
+  try { const a = localStorage.getItem(AUTH_KEY); if (a) auth = { ...auth, ...JSON.parse(a) }; } catch(e){}
+  if (!appData.stats.streakDays) appData.stats.streakDays = {};
+  updateStreak(); updateAuthUI();
+}
+function saveAuth() { localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); updateAuthUI(); }
+
+// ==================== AUTH ====================
+function updateAuthUI() {
+  const badge = document.getElementById('sync-badge');
+  const btn = document.getElementById('account-btn');
+  if (auth.token) {
+    badge.textContent = '☁️ 已同步'; badge.className = 'sync-status synced';
+    btn.textContent = auth.username; btn.classList.remove('btn-outline'); btn.classList.add('btn-green');
+    document.getElementById('account-logged-out').classList.add('hidden');
+    document.getElementById('account-logged-in').classList.remove('hidden');
+    document.getElementById('logged-username').textContent = auth.username;
+    document.getElementById('logged-server').textContent = auth.server || '未设置';
+  } else {
+    badge.textContent = '💾 离线'; badge.className = 'sync-status';
+    btn.textContent = '🔑 登录'; btn.classList.add('btn-outline'); btn.classList.remove('btn-green');
+    document.getElementById('account-logged-out').classList.remove('hidden');
+    document.getElementById('account-logged-in').classList.add('hidden');
+  }
+}
+
+function showAccountModal() {
+  document.getElementById('account-modal').classList.remove('hidden');
+  document.getElementById('auth-server').value = auth.server || window.location.origin;
+  document.getElementById('auth-error').classList.add('hidden');
+}
+
+function closeAccountModal() { document.getElementById('account-modal').classList.add('hidden'); }
+
+async function doAuth() {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const server = document.getElementById('auth-server').value.trim().replace(/\/$/, '');
+  const errEl = document.getElementById('auth-error');
+  errEl.classList.add('hidden');
+  if (!username || !password) { errEl.textContent = '请填写用户名和密码'; errEl.classList.remove('hidden'); return; }
+  if (!server) { errEl.textContent = '请填写服务器地址'; errEl.classList.remove('hidden'); return; }
+  try {
+    const res = await fetch(server + '/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '请求失败');
+    auth.token = data.token; auth.username = data.username; auth.server = server;
+    saveAuth();
+    toast('✅ 登录成功，正在同步...');
+    closeAccountModal();
+    await pullFromServer();
+  } catch(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
+}
+
+function doLogout() {
+  auth = { token: null, username: null, server: auth.server };
+  saveAuth(); closeAccountModal(); toast('👋 已退出'); updateAuthUI();
+}
+
+// ─── 同步引擎：服务端 = 唯一数据源，本地 = 缓存 ───
+
+function setSyncStatus(text, cls) {
+  const badge = document.getElementById('sync-badge');
+  if (badge) { badge.textContent = text; badge.className = 'sync-status ' + (cls||''); }
+}
+
+// 从服务端拉取（登录 / 页面加载时调用）
+async function pullFromServer() {
+  if (!auth.token) return;
+  try {
+    setSyncStatus('⬇️ 同步中...', '');
+    console.log('[SYNC] Pulling from server...');
+    const res = await fetch(auth.server + '/api/sync/download', {
+      headers: { 'Authorization': 'Bearer ' + auth.token }
+    });
+    if (!res.ok) {
+      console.error('[SYNC] Pull failed:', res.status);
+      setSyncStatus('⚠️ 拉取失败', 'error'); return;
+    }
+    const data = await res.json();
+    console.log('[SYNC] Pulled:', Object.keys(data.words||{}).length, 'words,', (data.stats||{}).totalReviews||0, 'reviews');
+    appData.words = data.words || {};
+    appData.stats = data.stats || {};
+    appData.version = data.version || 2;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    updateStats(); renderBrowse(); startReview();
+    setSyncStatus('☁️ 已同步', 'synced');
+    toast('⬇️ 已同步 ' + Object.keys(appData.words).length + ' 词');
+  } catch(e) {
+    console.error('[SYNC] Pull error:', e);
+    setSyncStatus('⚠️ 离线', 'error');
+  }
+}
+
+// 推送到服务端（每次 saveData 立即调用）
+async function pushToServer() {
+  if (!auth.token) return;
+  try {
+    console.log('[SYNC] Pushing to server...', Object.keys(appData.words).length, 'words');
+    const res = await fetch(auth.server + '/api/sync/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth.token },
+      body: JSON.stringify({ words: appData.words, stats: appData.stats, version: appData.version })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      console.log('[SYNC] Push OK:', result);
+      setSyncStatus('☁️ 已同步', 'synced');
+    } else {
+      console.error('[SYNC] Push failed:', result);
+      setSyncStatus('⚠️ 推送失败', 'error');
+    }
+  } catch(e) {
+    console.error('[SYNC] Push error:', e);
+    setSyncStatus('⚠️ 离线', 'error');
+  }
+}
+
+// saveData：写本地 + 立即推服务端
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  pushToServer();
+}
+
+// 手动强制同步（调试按钮）
+async function forceSync() {
+  if (!auth.token) { showAccountModal(); return; }
+  setSyncStatus('🔄 强制同步...', '');
+  await pushToServer();
+  await pullFromServer();
+}
+// ==================== SM-2 ====================
+function sm2(word, quality) {
+  const w = appData.words[word]; if (!w) return;
+  w.reviews = (w.reviews || 0) + 1; w.lastReview = TODAY;
+  if (quality < 2) { w.interval = 0; w.ease = Math.max(1.3, (w.ease || 2.5) - 0.2); w.due = TODAY; }
+  else {
+    if (w.reviews === 1) w.interval = 1; else if (w.reviews === 2) w.interval = 3;
+    else w.interval = Math.round((w.interval || 1) * (w.ease || 2.5));
+    const due = new Date(); due.setDate(due.getDate() + w.interval); w.due = due.toISOString().split('T')[0];
+    w.ease = Math.max(1.3, Math.min(2.8, (w.ease || 2.5) + (0.1 - (3 - quality) * (0.08 + (3 - quality) * 0.02))));
+  }
+  appData.stats.totalReviews = (appData.stats.totalReviews || 0) + 1;
+  appData.stats.lastStudyDate = TODAY; appData.stats.streakDays = appData.stats.streakDays || {};
+  appData.stats.streakDays[TODAY] = true;
+  updateStreak(); saveData();
+}
+function updateStreak() {
+  let s=0; const d=new Date();
+  while ((appData.stats.streakDays||{})[d.toISOString().split('T')[0]]) { s++; d.setDate(d.getDate()-1); }
+  appData.stats.streak = s;
+}
+function getDueWords() {
+  return Object.entries(appData.words).filter(([_,w])=>!w.due||w.due<=TODAY)
+    .sort((a,b)=>(a[1].due?1:0)-(b[1].due?1:0)||(a[1].interval||0)-(b[1].interval||0));
+}
+function getWordStatus(w) {
+  if (!w||!w.due) return 'new'; if (w.interval>=21&&w.ease>=2.3) return 'mastered'; return 'learning';
+}
+
+// ==================== REVIEW ====================
+let reviewQueue=[], reviewIndex=0, reviewFlipped=false;
+function startReview() {
+  reviewQueue=getDueWords(); reviewIndex=0; reviewFlipped=false;
+  const empty=document.getElementById('review-empty'), card=document.getElementById('review-card');
+  if (reviewQueue.length===0) { empty.classList.remove('hidden'); card.classList.add('hidden');
+    document.getElementById('review-empty-msg').textContent=Object.keys(appData.words).length===0?'还没有导入词汇':'🎉 全部复习完毕！'; return; }
+  empty.classList.add('hidden'); card.classList.remove('hidden'); showReviewCard();
+}
+function showReviewCard() {
+  if (reviewIndex>=reviewQueue.length) { startReview(); return; }
+  reviewFlipped=false; const [word,data]=reviewQueue[reviewIndex];
+  document.getElementById('review-word').textContent=word;
+  document.getElementById('review-meaning').classList.add('hidden');
+  document.getElementById('review-rating').classList.add('hidden');
+  document.getElementById('review-extra').classList.add('hidden');
+  document.getElementById('review-progress').style.width=(reviewIndex/reviewQueue.length*100)+'%';
+  document.getElementById('review-remaining').textContent=reviewQueue.length-reviewIndex;
+  const pm=(data.extra||'').match(/\/[^/]+\//);
+  document.getElementById('review-phonetic').classList.toggle('hidden',!pm);
+  if(pm) document.getElementById('review-phonetic').textContent=pm[0];
+}
+function flipCard() {
+  if(reviewFlipped||reviewIndex>=reviewQueue.length) return; reviewFlipped=true;
+  const [word,data]=reviewQueue[reviewIndex];
+  document.getElementById('review-meaning').textContent=data.meaning;
+  document.getElementById('review-meaning').classList.remove('hidden');
+  document.getElementById('review-rating').classList.remove('hidden');
+  if(data.extra&&data.extra.length>1) { document.getElementById('review-extra').textContent=data.extra; document.getElementById('review-extra').classList.remove('hidden'); }
+  if(document.getElementById('auto-speak').checked) speakWord(word);
+}
+function rateCard(q) {
+  if(!reviewFlipped||reviewIndex>=reviewQueue.length) return;
+  sm2(reviewQueue[reviewIndex][0],q); reviewIndex++;
+  if(reviewIndex>=reviewQueue.length) { reviewQueue=getDueWords(); reviewIndex=0; }
+  if(reviewQueue.length===0) { document.getElementById('review-card').classList.add('hidden'); document.getElementById('review-empty').classList.remove('hidden'); document.getElementById('review-empty-msg').textContent='🎉 全部复习完毕！'; updateStats(); }
+  else showReviewCard();
+}
+
+// ==================== QUIZ ====================
+let quizWords=[], quizIdx=0, quizScore=0, quizAnswered=false;
+function startQuiz() {
+  const pool=document.getElementById('quiz-pool').value, count=parseInt(document.getElementById('quiz-count').value)||10;
+  let c=pool==='due'?getDueWords():pool==='new'?Object.entries(appData.words).filter(([_,w])=>!w.due):Object.entries(appData.words);
+  if(!c.length) { toast('没有可用词汇'); return; }
+  quizWords=[...c].sort(()=>Math.random()-0.5).slice(0,Math.min(count,c.length));
+  quizIdx=0; quizScore=0; document.getElementById('quiz-setup').classList.add('hidden');
+  document.getElementById('quiz-active').classList.remove('hidden'); document.getElementById('quiz-result').classList.add('hidden');
+  document.getElementById('quiz-total').textContent=quizWords.length; showQuizQuestion();
+}
+function showQuizQuestion() {
+  if(quizIdx>=quizWords.length) { finishQuiz(); return; } quizAnswered=false;
+  const [word,data]=quizWords[quizIdx];
+  document.getElementById('quiz-word').textContent=word;
+  document.getElementById('quiz-current').textContent=quizIdx+1; document.getElementById('quiz-score').textContent=quizScore;
+  document.getElementById('quiz-progress').style.width=(quizIdx/quizWords.length*100)+'%';
+  const others=Object.entries(appData.words).filter(([w])=>w!==word).sort(()=>Math.random()-0.5).slice(0,3);
+  const choices=[{m:data.meaning,correct:true},...others.map(([_,d])=>({m:d.meaning,correct:false}))].sort(()=>Math.random()-0.5);
+  document.getElementById('quiz-choices').innerHTML=choices.map((c,i)=>`<button class="choice-btn" onclick="answerQuiz(${i},this)" data-correct="${c.correct}">${c.m}</button>`).join('');
+}
+function answerQuiz(idx,btn) {
+  if(quizAnswered) return; quizAnswered=true;
+  const correct=btn.dataset.correct==='true'; if(correct) quizScore++;
+  document.querySelectorAll('#quiz-choices .choice-btn').forEach(b=>{b.disabled=true; if(b.dataset.correct==='true') b.classList.add('correct'); else if(b===btn&&!correct) b.classList.add('wrong');});
+  sm2(quizWords[quizIdx][0],correct?3:1);
+  setTimeout(()=>{quizIdx++;showQuizQuestion();},600);
+}
+function finishQuiz() {
+  document.getElementById('quiz-active').classList.add('hidden'); document.getElementById('quiz-result').classList.remove('hidden');
+  const pct=Math.round(quizScore/quizWords.length*100);
+  document.getElementById('quiz-final-score').textContent=`${quizScore}/${quizWords.length} (${pct}%)`;
+  document.getElementById('quiz-emoji').textContent=pct>=80?'🎉':pct>=60?'👍':'💪'; updateStats();
+}
+function resetQuiz() { document.getElementById('quiz-result').classList.add('hidden'); document.getElementById('quiz-setup').classList.remove('hidden'); }
+
+// ==================== SPELL ====================
+let spellWords=[], spellIdx=0, spellCorrect=0, currentSpellMode='spell';
+function startSpell() {
+  const pool=document.getElementById('spell-pool').value, count=parseInt(document.getElementById('spell-count').value)||10;
+  let c=pool==='due'?getDueWords():Object.entries(appData.words);
+  if(!c.length) { toast('没有可用词汇'); return; }
+  spellWords=[...c].sort(()=>Math.random()-0.5).slice(0,Math.min(count,c.length));
+  spellIdx=0; spellCorrect=0; document.getElementById('spell-setup').classList.add('hidden');
+  document.getElementById('spell-active').classList.remove('hidden'); document.getElementById('spell-result').classList.add('hidden');
+  document.getElementById('spell-total').textContent=spellWords.length; showSpellWord();
+}
+function showSpellWord() {
+  if(spellIdx>=spellWords.length) { finishSpell(); return; }
+  const [word,data]=spellWords[spellIdx];
+  const meaningEl=document.getElementById('spell-meaning'), dictationEl=document.getElementById('dictation-display');
+  if(currentSpellMode==='dictation') { meaningEl.classList.add('hidden'); dictationEl.classList.remove('hidden'); document.getElementById('dictation-play-btn').textContent='🔊 点击听发音'; setTimeout(()=>speakDictationWord(),300); }
+  else { meaningEl.textContent=data.meaning; meaningEl.classList.remove('hidden'); dictationEl.classList.add('hidden'); }
+  document.getElementById('spell-current').textContent=spellIdx+1; document.getElementById('spell-correct-count').textContent=spellCorrect;
+  document.getElementById('spell-progress').style.width=(spellIdx/spellWords.length*100)+'%'; document.getElementById('spell-feedback').textContent='';
+  const inp=document.getElementById('spell-input'); inp.value=''; inp.className='type-input'; inp.focus(); inp.dataset.word=word;
+  const pm=(data.extra||'').match(/\/[^/]+\//); document.getElementById('spell-phonetic-hint').classList.toggle('hidden',!pm);
+  if(pm) document.getElementById('spell-phonetic-hint').textContent='🔊 '+pm[0];
+}
+function spellCheck() {
+  const inp=document.getElementById('spell-input'), correct=inp.dataset.word, ans=inp.value.trim().toLowerCase();
+  if(ans===correct.toLowerCase()) { spellCorrect++; inp.className='type-input correct'; document.getElementById('spell-feedback').innerHTML='<span style="color:var(--green);">✅ 正确！</span>'; sm2(correct,4); }
+  else { inp.className='type-input wrong'; document.getElementById('spell-feedback').innerHTML=`<span style="color:var(--red);">❌ </span>正确答案: <strong style="color:var(--accent2);">${correct}</strong>`; sm2(correct,ans&&correct.toLowerCase().startsWith(ans)?2:0); }
+  document.getElementById('spell-correct-count').textContent=spellCorrect;
+  setTimeout(()=>{spellIdx++;showSpellWord();},1000);
+}
+function spellSkip() { sm2(spellWords[spellIdx][0],0); document.getElementById('spell-feedback').innerHTML=`答案: <strong>${spellWords[spellIdx][0]}</strong>`; setTimeout(()=>{spellIdx++;showSpellWord();},800); }
+function finishSpell() { document.getElementById('spell-active').classList.add('hidden'); document.getElementById('spell-result').classList.remove('hidden'); document.getElementById('spell-final-score').textContent=Math.round(spellCorrect/spellWords.length*100); updateStats(); }
+function resetSpell() { document.getElementById('spell-result').classList.add('hidden'); document.getElementById('spell-setup').classList.remove('hidden'); }
+function toggleSpellMode() { currentSpellMode=document.getElementById('spell-mode').value; }
+
+// ==================== BROWSE ====================
+function renderBrowse() {
+  const s=(document.getElementById('browse-search').value||'').toLowerCase(), f=document.getElementById('browse-filter').value;
+  let e=Object.entries(appData.words);
+  if(s) e=e.filter(([w,d])=>w.toLowerCase().includes(s)||d.meaning.toLowerCase().includes(s));
+  if(f==='new') e=e.filter(([_,d])=>!d.due); else if(f==='learning') e=e.filter(([_,d])=>getWordStatus(d)==='learning'); else if(f==='mastered') e=e.filter(([_,d])=>getWordStatus(d)==='mastered');
+  e.sort((a,b)=>a[0].localeCompare(b[0])); document.getElementById('browse-count').textContent=`${e.length} 词`;
+  const em={new:'🆕',learning:'📖',mastered:'✅'};
+  document.getElementById('browse-tbody').innerHTML=e.map(([w,d],i)=>`<tr><td>${i+1}</td><td><strong>${w}</strong> <button class="speak-btn speak-sm" onclick="speakWord('${w.replace(/'/g,"\\'")}')">🔊</button></td><td>${d.meaning}</td><td>${em[getWordStatus(d)]} ${getWordStatus(d)}</td><td>${d.interval||0}</td><td>${d.due||'未开始'}</td></tr>`).join('');
+}
+
+// ==================== STATS ====================
+function updateStats() {
+  const w=Object.values(appData.words);
+  document.getElementById('stat-total').textContent=w.length;
+  document.getElementById('stat-mastered').textContent=w.filter(v=>getWordStatus(v)==='mastered').length;
+  document.getElementById('stat-learning').textContent=w.filter(v=>getWordStatus(v)==='learning').length;
+  document.getElementById('stat-due').textContent=getDueWords().length;
+  document.getElementById('stat-reviews').textContent=appData.stats.totalReviews||0;
+  document.getElementById('stat-streak').textContent=appData.stats.streak||0;
+}
+
+// ==================== IMPORT ====================
+let importPreview=[];
+function handleFile(event) {
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e) {
+    try {
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1}); importPreview=[];
+      for(const row of rows) { if(!row[0]||typeof row[0]!=='string') continue;
+        const word=row[0].toString().trim(), meaning=row[1]?row[1].toString().trim():'', extra=row[2]?row[2].toString().trim():'';
+        if(word&&meaning) importPreview.push({word,meaning,extra}); }
+      showImportPreview();
+    } catch(err) { toast('❌ 解析失败: '+err.message); }
+  }; reader.readAsArrayBuffer(file);
+}
+function showImportPreview() {
+  document.getElementById('import-preview').classList.remove('hidden'); document.getElementById('import-count').textContent=importPreview.length;
+  document.getElementById('import-preview-tbody').innerHTML=importPreview.slice(0,5).map(r=>`<tr><td>${r.word}</td><td>${r.meaning}</td></tr>`).join('');
+}
+function confirmImport() {
+  const mode=document.getElementById('import-mode').value; if(mode==='replace') appData.words={};
+  let added=0,skipped=0;
+  for(const item of importPreview) { const key=item.word.toLowerCase(); if(appData.words[key]&&mode==='merge') { skipped++; continue; } appData.words[key]={meaning:item.meaning,extra:item.extra||'',ease:2.5,interval:0,reviews:0,due:null,lastReview:null}; added++; }
+  saveData(); toast(`✅ 导入完成！新增 ${added} 词${skipped?`，跳过 ${skipped}`:''}`);
+  document.getElementById('import-preview').classList.add('hidden'); importPreview=[]; updateStats(); renderBrowse(); startReview();
+}
+function manualAdd() {
+  const word=document.getElementById('manual-word').value.trim(), meaning=document.getElementById('manual-meaning').value.trim();
+  if(!word||!meaning) { toast('请填写单词和释义'); return; }
+  if(appData.words[word.toLowerCase()]) { toast('已存在'); return; }
+  appData.words[word.toLowerCase()]={meaning,extra:'',ease:2.5,interval:0,reviews:0,due:null,lastReview:null};
+  saveData(); toast(`✅ 已添加: ${word}`); document.getElementById('manual-word').value=''; document.getElementById('manual-meaning').value=''; updateStats();
+}
+function exportData() {
+  const blob=new Blob([JSON.stringify(appData,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`vocabmaster-backup-${TODAY}.json`; a.click();
+  URL.revokeObjectURL(a.href); toast('💾 已导出');
+}
+function resetAllProgress() {
+  if(!confirm('重置所有学习进度？词库保留。不可撤销！')) return;
+  for(const k in appData.words) { appData.words[k].ease=2.5; appData.words[k].interval=0; appData.words[k].reviews=0; appData.words[k].due=null; appData.words[k].lastReview=null; }
+  appData.stats={totalReviews:0,streak:0,lastStudyDate:null,streakDays:{}}; saveData(); updateStats(); renderBrowse(); startReview(); toast('🔄 已重置');
+}
+
+// ==================== SPEECH ====================
+let speechSynth=window.speechSynthesis, currentVoice=null, speechRate=0.9;
+function initVoices() {
+  const voices=speechSynth.getVoices(), sel=document.getElementById('voice-select');
+  if(sel.options.length>0) return;
+  const enVoices=voices.filter(v=>v.lang.startsWith('en'));
+  const preferred=enVoices.find(v=>v.name.includes('Google')||v.name.includes('Microsoft')||v.name.includes('Samantha'));
+  currentVoice=preferred||enVoices[0]||voices[0];
+  enVoices.forEach(v=>{const o=document.createElement('option'); o.value=v.name; o.textContent=v.name.replace('Google ','').replace('Microsoft ','').replace('English ',''); if(v.name===currentVoice.name) o.selected=true; sel.appendChild(o);});
+}
+speechSynth.onvoiceschanged=initVoices; initVoices();
+function updateSpeechSettings() { const v=document.getElementById('voice-select').value; currentVoice=speechSynth.getVoices().find(x=>x.name===v)||currentVoice; }
+function toggleAutoSpeak() {}
+function speakWord(word) { if(!word||!speechSynth) return; speechSynth.cancel(); const u=new SpeechSynthesisUtterance(word); u.voice=currentVoice; u.rate=speechRate; u.lang='en-US'; speechSynth.speak(u); }
+function speakReviewWord() {
+  if(reviewIndex>=reviewQueue.length) return; const btn=document.getElementById('review-speak-btn'); btn.classList.add('speaking');
+  const u=new SpeechSynthesisUtterance(reviewQueue[reviewIndex][0]); u.voice=currentVoice; u.rate=speechRate; u.lang='en-US';
+  u.onend=()=>btn.classList.remove('speaking'); speechSynth.cancel(); speechSynth.speak(u);
+}
+function speakQuizWord() { if(quizIdx<quizWords.length) speakWord(quizWords[quizIdx][0]); }
+function speakDictationWord() {
+  if(spellIdx>=spellWords.length) return; const btn=document.getElementById('dictation-play-btn'); btn.textContent='🔊 播放中...';
+  const u=new SpeechSynthesisUtterance(spellWords[spellIdx][0]); u.voice=currentVoice; u.rate=0.8; u.lang='en-US';
+  u.onend=()=>{btn.textContent='🔊 点击重听';}; speechSynth.cancel(); speechSynth.speak(u);
+}
+
+// ==================== NAV ====================
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.desktop-nav button').forEach(b=>b.classList.remove('active'));
+  const pe=document.getElementById('page-'+page); if(pe) pe.classList.add('active');
+  const be=document.getElementById('bnav-'+page); if(be) be.classList.add('active');
+  const ne=document.getElementById('nav-'+page); if(ne) ne.classList.add('active');
+  if(page==='review') startReview(); if(page==='browse') renderBrowse(); if(page==='stats') updateStats();
+}
+
+// ==================== TOAST ====================
+function toast(msg) { const el=document.createElement('div'); el.className='toast'; el.textContent=msg; document.getElementById('toast-container').appendChild(el); setTimeout(()=>el.remove(),2200); }
+
+// ==================== KEYBOARD ====================
+document.addEventListener('keydown',function(e){
+  const rc=document.getElementById('review-card');
+  if(!rc.classList.contains('hidden')&&!e.target.closest('input,select')) {
+    if(e.key===' ') { e.preventDefault(); flipCard(); }
+    if(reviewFlipped&&e.key>='1'&&e.key<='5') rateCard(parseInt(e.key)-1);
+    if((e.key==='s'||e.key==='S')&&reviewIndex<reviewQueue.length) { e.preventDefault(); speakReviewWord(); }
+  }
+  if((e.key==='s'||e.key==='S')&&currentSpellMode==='dictation'&&!document.getElementById('dictation-display').classList.contains('hidden')) { e.preventDefault(); speakDictationWord(); }
+  if(e.key==='Enter'&&document.getElementById('spell-input')===document.activeElement) spellCheck();
+  if(e.ctrlKey||e.metaKey) { const m={'1':'review','2':'quiz','3':'spell','4':'browse','5':'stats'}; if(m[e.key]) { e.preventDefault(); switchPage(m[e.key]); } }
+});
+
+// DnD
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over'); if(e.dataTransfer.files[0]){const dt=new DataTransfer();dt.items.add(e.dataTransfer.files[0]);document.getElementById('file-input').files=dt.files;handleFile({target:{files:dt.files}});}});
+
+// Init：已登录 → 跳过本地缓存，直接从服务器拉取
+loadData();
+if (auth.token) {
+  // 服务器优先：先拉到最新数据再渲染
+  pullFromServer().then(() => {
+    updateStats(); renderBrowse(); startReview();
+  });
+} else {
+  updateStats(); startReview(); renderBrowse();
+}
+updateAuthUI();
+// 注册 Service Worker (PWA)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
