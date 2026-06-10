@@ -45,9 +45,6 @@ bash deploy.sh your-domain.com your@email.com
 
 ## 🔑 登录
 
-- 用户名：`kousi`
-- 密码：`00000`
-
 注册功能已禁用，单账号模式。
 
 ## 📁 项目结构
