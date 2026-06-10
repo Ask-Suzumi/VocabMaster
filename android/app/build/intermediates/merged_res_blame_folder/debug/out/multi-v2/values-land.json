@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.vocabmaster.app-mergeDebugResources-19:/values-land/values-land.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\9.3.0\\transforms\\815b1fa5d3e5f4a5199814e1c1d5c257\\workspace\\transformed\\appcompat-1.6.1\\res\\values-land\\values-land.xml",
+                    "from": {
+                        "startLines": "2,3,4",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "55,125,196",
+                        "endColumns": "69,70,67",
+                        "endOffsets": "120,191,259"
+                    }
+                }
+            ]
+        }
+    ]
+}
