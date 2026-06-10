@@ -459,9 +459,27 @@ let auth = { token: null, username: null, server: '' };
 
 function loadData() {
   try { const r = localStorage.getItem(STORAGE_KEY); if (r) appData = { ...appData, ...JSON.parse(r) }; } catch(e){}
+  // 优先读 localStorage，没有则尝试从 Cookie 恢复（Edge/WebView 兼容）
   try { const a = localStorage.getItem(AUTH_KEY); if (a) auth = { ...auth, ...JSON.parse(a) }; } catch(e){}
+  if (!auth.token) tryRestoreFromCookie();
   if (!appData.stats.streakDays) appData.stats.streakDays = {};
   updateStreak(); updateAuthUI();
+}
+
+// 从 Cookie 恢复登录态（Edge 移动端 / Android WebView 兼容）
+async function tryRestoreFromCookie() {
+  try {
+    const res = await fetch('/api/auth/restore', { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      auth.token = data.token;
+      auth.username = data.username;
+      auth.server = window.location.origin;
+      localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+      updateAuthUI();
+      console.log('[AUTH] Restored from cookie:', data.username);
+    }
+  } catch(e) { /* cookie not available */ }
 }
 function saveAuth() { localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); updateAuthUI(); }
 
@@ -798,24 +816,103 @@ function resetAllProgress() {
   appData.stats={totalReviews:0,streak:0,lastStudyDate:null,streakDays:{}}; saveData(); updateStats(); renderBrowse(); startReview(); toast('🔄 已重置');
 }
 
-// ==================== SPEECH ====================
-let speechSynth=window.speechSynthesis, currentVoice=null, speechRate=0.9;
-function initVoices() {
-  const voices=speechSynth.getVoices(), sel=document.getElementById('voice-select');
-  if(sel.options.length>0) return;
-  const enVoices=voices.filter(v=>v.lang.startsWith('en'));
-  const preferred=enVoices.find(v=>v.name.includes('Google')||v.name.includes('Microsoft')||v.name.includes('Samantha'));
-  currentVoice=preferred||enVoices[0]||voices[0];
-  enVoices.forEach(v=>{const o=document.createElement('option'); o.value=v.name; o.textContent=v.name.replace('Google ','').replace('Microsoft ','').replace('English ',''); if(v.name===currentVoice.name) o.selected=true; sel.appendChild(o);});
+// ==================== SPEECH (移动端兼容) ====================
+let speechSynth=window.speechSynthesis, currentVoice=null, speechRate=0.9, audioUnlocked=false;
+
+// 移动端需要用户手势才能解锁音频
+function unlockAudio() {
+  if (audioUnlocked || !speechSynth) return;
+  const u = new SpeechSynthesisUtterance('');
+  u.volume = 0; u.rate = 1;
+  speechSynth.speak(u);
+  audioUnlocked = true;
+  console.log('[AUDIO] Unlocked');
 }
-speechSynth.onvoiceschanged=initVoices; initVoices();
-function updateSpeechSettings() { const v=document.getElementById('voice-select').value; currentVoice=speechSynth.getVoices().find(x=>x.name===v)||currentVoice; }
-function toggleAutoSpeak() {}
-function speakWord(word) { if(!word||!speechSynth) return; speechSynth.cancel(); const u=new SpeechSynthesisUtterance(word); u.voice=currentVoice; u.rate=speechRate; u.lang='en-US'; speechSynth.speak(u); }
+// 全局首次点击解锁
+document.addEventListener('click', unlockAudio, { once: true });
+
+function initVoices() {
+  const voices = speechSynth.getVoices();
+  const sel = document.getElementById('voice-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  
+  if (voices.length === 0) {
+    // iOS/部分安卓首次加载 voices 可能为空，等 onvoiceschanged 触发
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = '加载中...'; sel.appendChild(opt);
+    return;
+  }
+  
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+  if (enVoices.length === 0) {
+    // 没有英语语音：用系统默认
+    const opt = document.createElement('option');
+    opt.value = 'default'; opt.textContent = '系统默认'; opt.selected = true;
+    sel.appendChild(opt);
+    currentVoice = null;
+    return;
+  }
+  
+  const preferred = enVoices.find(v => 
+    v.name.includes('Google') || v.name.includes('Microsoft') || 
+    v.name.includes('Samantha') || v.name.includes('Daniel') || v.name.includes('Karen')
+  );
+  currentVoice = preferred || enVoices[0];
+  
+  enVoices.slice(0, 20).forEach(v => {
+    const o = document.createElement('option');
+    o.value = v.name;
+    // 缩短显示名
+    o.textContent = v.name.replace('Google ','').replace('Microsoft ','').replace('English ','').substring(0, 25);
+    if (currentVoice && v.name === currentVoice.name) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+speechSynth.onvoiceschanged = () => {
+  initVoices();
+  // 重试：有时首次触发 voices 仍然为空，延迟再试
+  if (speechSynth.getVoices().length === 0) {
+    setTimeout(initVoices, 500);
+  }
+};
+initVoices();
+
+function updateSpeechSettings() {
+  const sel = document.getElementById('voice-select');
+  const v = sel ? sel.value : '';
+  if (v && v !== 'default') {
+    currentVoice = speechSynth.getVoices().find(x => x.name === v) || null;
+  } else {
+    currentVoice = null;
+  }
+}
+
+function toggleAutoSpeak() { unlockAudio(); }
+
+function speakWord(word) {
+  if (!word || !speechSynth) return;
+  unlockAudio();
+  speechSynth.cancel();
+  const u = new SpeechSynthesisUtterance(word);
+  if (currentVoice) u.voice = currentVoice;
+  u.rate = speechRate;
+  u.lang = 'en-US';
+  // 移动端 Chrome bug: pause/resume 有时能解决不播放问题
+  speechSynth.speak(u);
+  if (speechSynth.paused) speechSynth.resume();
+}
+
 function speakReviewWord() {
-  if(reviewIndex>=reviewQueue.length) return; const btn=document.getElementById('review-speak-btn'); btn.classList.add('speaking');
-  const u=new SpeechSynthesisUtterance(reviewQueue[reviewIndex][0]); u.voice=currentVoice; u.rate=speechRate; u.lang='en-US';
-  u.onend=()=>btn.classList.remove('speaking'); speechSynth.cancel(); speechSynth.speak(u);
+  if (reviewIndex >= reviewQueue.length) return;
+  const btn = document.getElementById('review-speak-btn');
+  if (btn) btn.classList.add('speaking');
+  const u = new SpeechSynthesisUtterance(reviewQueue[reviewIndex][0]);
+  if (currentVoice) u.voice = currentVoice;
+  u.rate = speechRate; u.lang = 'en-US';
+  u.onend = () => { if (btn) btn.classList.remove('speaking'); };
+  speakWord(reviewQueue[reviewIndex][0]);
 }
 function speakQuizWord() { if(quizIdx<quizWords.length) speakWord(quizWords[quizIdx][0]); }
 function speakDictationWord() {

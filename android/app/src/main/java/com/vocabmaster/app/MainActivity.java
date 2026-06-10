@@ -2,6 +2,7 @@ package com.vocabmaster.app;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -9,7 +10,6 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
-    // ★ 改成你的实际域名
     private static final String APP_URL = "https://muvsera.cc.cd";
 
     private WebView webView;
@@ -22,18 +22,23 @@ public class MainActivity extends AppCompatActivity {
         webView = new WebView(this);
         setContentView(webView);
 
+        // ─── Cookie 持久化（解决每次打开需重新登录）───
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(webView, true);
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-
-        // 允许文件选择（导入 xlsx 用）
         settings.setAllowContentAccess(true);
 
-        webView.setWebViewClient(new WebViewClient());
+        // 持久化 DOM Storage（localStorage 不丢失）
+        settings.setDatabaseEnabled(true);
 
+        webView.setWebViewClient(new WebViewClient());
         webView.loadUrl(APP_URL);
     }
 
@@ -43,6 +48,17 @@ public class MainActivity extends AppCompatActivity {
             webView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 每次回到前台时刷新同步状态
+        if (webView != null) {
+            webView.evaluateJavascript(
+                "if(typeof pullFromServer==='function'&&auth&&auth.token)pullFromServer()", null
+            );
         }
     }
 }

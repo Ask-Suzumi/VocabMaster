@@ -138,6 +138,29 @@ quality >= 2（成功）:
 - **原因：** `MainActivity.java` 中 `APP_URL` 为占位符 `https://你的域名`
 - **解决：** 改为实际域名 `https://muvsera.cc.cd`
 
+### Bug #8：Edge 移动端 / Android WebView 每次刷新都需重新登录
+- **现象：** Edge 手机浏览器和 Android APK 每次打开页面都需要重新输入账号密码
+- **原因：** (1) Edge 移动端的跟踪防护策略会清除 localStorage；(2) Android WebView 默认不持久化 Cookie 和 DOM Storage
+- **解决：** 
+  - 服务端：登录时设置 `vocabmaster_token` Cookie（30天有效期），新增 `/api/auth/restore` 端点从 Cookie 恢复登录态
+  - 前端：页面加载时先读 localStorage，失败则自动请求 `/api/auth/restore` 从 Cookie 恢复
+  - Android：`MainActivity.java` 中启用 `CookieManager.setAcceptCookie(true)` 和 `setDatabaseEnabled(true)`
+
+### Bug #9：移动端发音失效 + 语音选择器 UI 显示异常
+- **现象：**
+  1. 手机端（网页和 APK）点击发音按钮无声音
+  2. 语音选择器下拉框显示空白或"加载中..."卡住
+- **原因：**
+  1. 移动浏览器要求**用户手势**（点击/触摸）后才能激活 SpeechSynthesis API，自动调用会被静默忽略
+  2. iOS Safari 和部分安卓浏览器首次加载时 `speechSynthesis.getVoices()` 返回空数组，需要等 `onvoiceschanged` 事件异步触发
+  3. 部分设备没有安装英语语音包时，原代码直接取 `voices[0]` 可能是一个非英语语音
+- **解决：**
+  - 全局监听首次点击事件，用空 utterance 解锁音频上下文
+  - `initVoices()` 在 voices 为空时显示"加载中..."，监听 `onvoiceschanged` 事件后重新填充，并加 500ms 延迟重试
+  - 英语语音不存在时回退到"系统默认"（`voice=null` 让浏览器自己选）
+  - 播放时加 `speechSynth.resume()` 解决 Chrome Android 的暂停 Bug
+  - 限制语音列表最多 20 个，避免下拉框过长
+
 ---
 
 ## 四、项目结构

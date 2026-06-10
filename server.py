@@ -107,21 +107,54 @@ async def register(body: AuthRequest):
     raise HTTPException(403, "Registration is disabled")
 
 @app.post("/api/login")
-async def login(body: AuthRequest):
+async def login(body: AuthRequest, response: Response = None):
     if body.username == HARDCODED_USER and body.password == HARDCODED_PASS:
         token = create_token(0)
-        logger.info(f"LOGIN: hardcoded user '{HARDCODED_USER}' (user_id=0)")
-        return {"token": token, "user_id": 0, "username": HARDCODED_USER}
-    db = await get_db()
+        user_id, username = 0, HARDCODED_USER
+    else:
+        db = await get_db()
+        try:
+            user = await db.execute("SELECT * FROM users WHERE username = ?", (body.username,))
+            user = await user.fetchone()
+            if not user or not verify_password(body.password, user["password_hash"]):
+                raise HTTPException(401, "Invalid credentials")
+            token = create_token(user["id"])
+            user_id, username = user["id"], user["username"]
+        finally:
+            await db.close()
+    
+    logger.info(f"LOGIN: user '{username}' (user_id={user_id})")
+    
+    # Set HTTP-only cookie for Edge/WebView persistence
+    resp = JSONResponse({"token": token, "user_id": user_id, "username": username})
+    resp.set_cookie(
+        key="vocabmaster_token", value=token,
+        max_age=JWT_EXPIRE_DAYS * 86400,
+        httponly=False,  # False so JS can read it too
+        samesite="lax",
+        secure=False     # True in production with HTTPS
+    )
+    resp.set_cookie(
+        key="vocabmaster_user", value=username,
+        max_age=JWT_EXPIRE_DAYS * 86400,
+        samesite="lax"
+    )
+    return resp
+
+# 通过 Cookie 恢复登录态（Edge/WebView 兼容）
+@app.get("/api/auth/restore")
+async def auth_restore(request: Request):
+    token = request.cookies.get("vocabmaster_token")
+    if not token:
+        raise HTTPException(401, "No cookie")
     try:
-        user = await db.execute("SELECT * FROM users WHERE username = ?", (body.username,))
-        user = await user.fetchone()
-        if not user or not verify_password(body.password, user["password_hash"]):
-            raise HTTPException(401, "Invalid credentials")
-        logger.info(f"LOGIN: db user '{body.username}' (user_id={user['id']})")
-        return {"token": create_token(user["id"]), "user_id": user["id"], "username": user["username"]}
-    finally:
-        await db.close()
+        user_id = decode_token(token)
+        username = request.cookies.get("vocabmaster_user", "unknown")
+        return {"token": token, "user_id": user_id, "username": username}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except Exception:
+        raise HTTPException(401, "Invalid token")
 
 # ─── Sync Routes ──────────────────────────────────────────
 @app.get("/api/sync/download")

@@ -16,11 +16,13 @@ __pycache__/
 docker-compose.override.yml
 
 # Android
-app/build/
-app/.gradle/
-*.apk
-*.aab
-local.properties
+android/app/build/
+android/build/
+android/.gradle/
+android/*.apk
+android/*.aab
+android/local.properties
+android/.idea/
 
 # OS
 .DS_Store
