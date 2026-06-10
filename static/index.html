@@ -954,17 +954,21 @@ dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-ove
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
 dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over'); if(e.dataTransfer.files[0]){const dt=new DataTransfer();dt.items.add(e.dataTransfer.files[0]);document.getElementById('file-input').files=dt.files;handleFile({target:{files:dt.files}});}});
 
-// Init：已登录 → 跳过本地缓存，直接从服务器拉取
-loadData();
-if (auth.token) {
-  // 服务器优先：先拉到最新数据再渲染
-  pullFromServer().then(() => {
+// Init：先渲染，再异步恢复登录态并拉取数据
+(async function init() {
+  loadData();
+  
+  // 等待 Cookie 恢复完成（300ms 足够一次 fetch）
+  await new Promise(r => setTimeout(r, auth.token ? 0 : 500));
+  
+  if (auth.token) {
+    await pullFromServer();
     updateStats(); renderBrowse(); startReview();
-  });
-} else {
-  updateStats(); startReview(); renderBrowse();
-}
-updateAuthUI();
+  } else {
+    updateStats(); startReview(); renderBrowse();
+  }
+  updateAuthUI();
+})();
 // 注册 Service Worker (PWA)
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/static/sw.js').catch(() => {});
